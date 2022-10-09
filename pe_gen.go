@@ -139,11 +139,18 @@ type PeProfile struct {
     Off_IMAGE_THUNK_DATA64_ForwarderString int64
     Off_IMAGE_THUNK_DATA64_Function int64
     Off_IMAGE_THUNK_DATA64_Ordinal int64
+
+    Off_IMAGE_OPTIONAL_HEADER_SectionAlignment int64
+    Off_IMAGE_OPTIONAL_HEADER_FileAlignment int64
+    Off_IMAGE_OPTIONAL_HEADER_SizeOfImage int64
+    Off_IMAGE_OPTIONAL_HEADER64_SectionAlignment int64
+    Off_IMAGE_OPTIONAL_HEADER64_FileAlignment int64
+    Off_IMAGE_OPTIONAL_HEADER64_SizeOfImage int64
 }
 
 func NewPeProfile() *PeProfile {
     // Specific offsets can be tweaked to cater for slight version mismatches.
-    self := &PeProfile{0,4,20,24,0,4,8,0,4,0,2,4,0,2,0,2,4,6,0,2,4,6,0,2,4,6,0,2,4,6,0,4,6,0,4,6,8,4,0,20,4,12,60,0,28,36,32,16,12,20,24,0,0,0,18,0,2,16,4,4,2,0,12,0,4,24,0,64,96,28,0,60,112,24,0,60,0,4,8,14,12,16,0,4,0,0,4,4,36,0,20,16,12,0,0,0,0,0,0,0,0}
+    self := &PeProfile{0,4,20,24,0,4,8,0,4,0,2,4,0,2,0,2,4,6,0,2,4,6,0,2,4,6,0,2,4,6,0,4,6,0,4,6,8,4,0,20,4,12,60,0,28,36,32,16,12,20,24,0,0,0,18,0,2,16,4,4,2,0,12,0,4,24,0,64,96,28,0,60,112,24,0,60,0,4,8,14,12,16,0,4,0,0,4,4,36,0,20,16,12,0,0,0,0,0,0,0,0,32,36,56,32,36,56}
     return self
 }
 
@@ -952,8 +959,20 @@ func (self *IMAGE_OPTIONAL_HEADER) ImageBase() uint32 {
    return ParseUint32(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER_ImageBase + self.Offset)
 }
 
+func (self *IMAGE_OPTIONAL_HEADER) SectionAlignment() uint32 {
+   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER_SectionAlignment + self.Offset)
+}
+
+func (self *IMAGE_OPTIONAL_HEADER) FileAlignment() uint32 {
+   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER_FileAlignment + self.Offset)
+}
+
 func (self *IMAGE_OPTIONAL_HEADER) Magic() uint16 {
    return ParseUint16(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER_Magic + self.Offset)
+}
+
+func (self *IMAGE_OPTIONAL_HEADER) SizeOfImage() uint32 {
+   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER_SizeOfImage + self.Offset)
 }
 
 func (self *IMAGE_OPTIONAL_HEADER) SizeOfHeaders() uint32 {
@@ -963,7 +982,10 @@ func (self *IMAGE_OPTIONAL_HEADER) DebugString() string {
     result := fmt.Sprintf("struct IMAGE_OPTIONAL_HEADER @ %#x:\n", self.Offset)
     result += fmt.Sprintf("  CheckSum: %#0x\n", self.CheckSum())
     result += fmt.Sprintf("  ImageBase: %#0x\n", self.ImageBase())
+    result += fmt.Sprintf("  SectionAlignment: %#0x\n", self.SectionAlignment())
+    result += fmt.Sprintf("  FileAlignment: %#0x\n", self.FileAlignment())
     result += fmt.Sprintf("  Magic: %#0x\n", self.Magic())
+    result += fmt.Sprintf("  SizeOfImage: %#0x\n", self.SizeOfImage())
     result += fmt.Sprintf("  SizeOfHeaders: %#0x\n", self.SizeOfHeaders())
     return result
 }
@@ -986,8 +1008,20 @@ func (self *IMAGE_OPTIONAL_HEADER64) ImageBase() uint64 {
     return ParseUint64(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER64_ImageBase + self.Offset)
 }
 
+func (self *IMAGE_OPTIONAL_HEADER64) SectionAlignment() uint32 {
+   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER64_SectionAlignment + self.Offset)
+}
+
+func (self *IMAGE_OPTIONAL_HEADER64) FileAlignment() uint32 {
+   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER64_FileAlignment + self.Offset)
+}
+
 func (self *IMAGE_OPTIONAL_HEADER64) Magic() uint16 {
    return ParseUint16(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER64_Magic + self.Offset)
+}
+
+func (self *IMAGE_OPTIONAL_HEADER64) SizeOfImage() uint32 {
+   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER64_SizeOfImage + self.Offset)
 }
 
 func (self *IMAGE_OPTIONAL_HEADER64) SizeOfHeaders() uint32 {
@@ -996,7 +1030,10 @@ func (self *IMAGE_OPTIONAL_HEADER64) SizeOfHeaders() uint32 {
 func (self *IMAGE_OPTIONAL_HEADER64) DebugString() string {
     result := fmt.Sprintf("struct IMAGE_OPTIONAL_HEADER64 @ %#x:\n", self.Offset)
     result += fmt.Sprintf("  ImageBase: %#0x\n", self.ImageBase())
+    result += fmt.Sprintf("  SectionAlignment: %#0x\n", self.SectionAlignment())
+    result += fmt.Sprintf("  FileAlignment: %#0x\n", self.FileAlignment())
     result += fmt.Sprintf("  Magic: %#0x\n", self.Magic())
+    result += fmt.Sprintf("  SizeOfImage: %#0x\n", self.SizeOfImage())
     result += fmt.Sprintf("  SizeOfHeaders: %#0x\n", self.SizeOfHeaders())
     return result
 }
