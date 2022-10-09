@@ -146,11 +146,13 @@ type PeProfile struct {
     Off_IMAGE_OPTIONAL_HEADER64_SectionAlignment int64
     Off_IMAGE_OPTIONAL_HEADER64_FileAlignment int64
     Off_IMAGE_OPTIONAL_HEADER64_SizeOfImage int64
+    Off_IMAGE_SECTION_HEADER_VirtualSize int64
+    Off_IMAGE_IMPORT_DESCRIPTOR_FirstThunk int64
 }
 
 func NewPeProfile() *PeProfile {
     // Specific offsets can be tweaked to cater for slight version mismatches.
-    self := &PeProfile{0,4,20,24,0,4,8,0,4,0,2,4,0,2,0,2,4,6,0,2,4,6,0,2,4,6,0,2,4,6,0,4,6,0,4,6,8,4,0,20,4,12,60,0,28,36,32,16,12,20,24,0,0,0,18,0,2,16,4,4,2,0,12,0,4,24,0,64,96,28,0,60,112,24,0,60,0,4,8,14,12,16,0,4,0,0,4,4,36,0,20,16,12,0,0,0,0,0,0,0,0,32,36,56,32,36,56}
+    self := &PeProfile{0,4,20,24,0,4,8,0,4,0,2,4,0,2,0,2,4,6,0,2,4,6,0,2,4,6,0,2,4,6,0,4,6,0,4,6,8,4,0,20,4,12,60,0,28,36,32,16,12,20,24,0,0,0,18,0,2,16,4,4,2,0,12,0,4,24,0,64,96,28,0,60,112,24,0,60,0,4,8,14,12,16,0,4,0,0,4,4,36,0,20,16,12,0,0,0,0,0,0,0,0,32,36,56,32,36,56,8,16}
     return self
 }
 
@@ -900,11 +902,16 @@ func (self *IMAGE_IMPORT_DESCRIPTOR) Name() uint32 {
 func (self *IMAGE_IMPORT_DESCRIPTOR) OriginalFirstThunk() uint32 {
    return ParseUint32(self.Reader, self.Profile.Off_IMAGE_IMPORT_DESCRIPTOR_OriginalFirstThunk + self.Offset)
 }
+
+func (self *IMAGE_IMPORT_DESCRIPTOR) FirstThunk() uint32 {
+    return ParseUint32(self.Reader, self.Profile.Off_IMAGE_IMPORT_DESCRIPTOR_FirstThunk + self.Offset)
+}
 func (self *IMAGE_IMPORT_DESCRIPTOR) DebugString() string {
     result := fmt.Sprintf("struct IMAGE_IMPORT_DESCRIPTOR @ %#x:\n", self.Offset)
     result += fmt.Sprintf("  Characteristics: %#0x\n", self.Characteristics())
     result += fmt.Sprintf("  Name: %#0x\n", self.Name())
     result += fmt.Sprintf("  OriginalFirstThunk: %#0x\n", self.OriginalFirstThunk())
+    result += fmt.Sprintf("  FirstThunk: %#0x\n", self.FirstThunk())
     return result
 }
 
@@ -1242,6 +1249,10 @@ func (self *IMAGE_SECTION_HEADER) SizeOfRawData() uint32 {
 func (self *IMAGE_SECTION_HEADER) VirtualAddress() uint32 {
    return ParseUint32(self.Reader, self.Profile.Off_IMAGE_SECTION_HEADER_VirtualAddress + self.Offset)
 }
+
+func (self *IMAGE_SECTION_HEADER) VirtualSize() uint32 {
+   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_SECTION_HEADER_VirtualSize + self.Offset)
+}
 func (self *IMAGE_SECTION_HEADER) DebugString() string {
     result := fmt.Sprintf("struct IMAGE_SECTION_HEADER @ %#x:\n", self.Offset)
     result += fmt.Sprintf("  Characteristics: %#0x\n", self.Characteristics())
@@ -1249,6 +1260,7 @@ func (self *IMAGE_SECTION_HEADER) DebugString() string {
     result += fmt.Sprintf("  PointerToRawData: %#0x\n", self.PointerToRawData())
     result += fmt.Sprintf("  SizeOfRawData: %#0x\n", self.SizeOfRawData())
     result += fmt.Sprintf("  VirtualAddress: %#0x\n", self.VirtualAddress())
+    result += fmt.Sprintf("  VirtualSize: %#0x\n", self.VirtualSize())
     return result
 }
 
