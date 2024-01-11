@@ -23,10 +23,6 @@ import (
 	"github.com/Velocidex/pkcs7"
 )
 
-const (
-	IMAGE_DIRECTORY_ENTRY_SECURITY = 4
-)
-
 var (
 	oidEmailAddress                 = []int{1, 2, 840, 113549, 1, 9, 1}
 	oidExtensionAuthorityInfoAccess = []int{1, 3, 6, 1, 5, 5, 7, 1, 1}
@@ -146,20 +142,28 @@ func (self *PEFile) CalcHash() *Hashes {
 	DebugPrint("Second range %d-%d\n", start_of_checksum+4, security_dir.Offset)
 	wrapper.CopyRange(writer, start_of_checksum+4, security_dir.Offset)
 
-	optional_header := self.nt_header.OptionalHeader()
-
-	// The SizeOfHeaders is the end of the entire first part of
-	// the file (including all headers). After that there are sections.
-	wrapper.CopyRange(writer, security_dir.Offset+8,
-		int64(optional_header.SizeOfHeaders()))
-	DebugPrint("range %d-%d\n",
-		security_dir.Offset+8, int64(optional_header.SizeOfHeaders()))
-
 	// Sort the sections in ascending file offset order.
 	sections := self.nt_header.Sections()
 	sort.Slice(sections, func(i, j int) bool {
 		return sections[i].PointerToRawData() < sections[j].PointerToRawData()
 	})
+
+	if len(sections) == 0 {
+		return hasher
+	}
+
+	optional_header := self.nt_header.OptionalHeader()
+
+	// If the max size is exceeded then dont bother reading.
+	end := int64(optional_header.SizeOfHeaders())
+	if self.max_size > 0 && end > self.max_size {
+		return hasher
+	}
+
+	// The SizeOfHeaders is the end of the entire first part of
+	// the file (including all headers). After that there are sections.
+	wrapper.CopyRange(writer, security_dir.Offset+8, end)
+	DebugPrint("range %d-%d\n", security_dir.Offset+8, end)
 
 	// Write the sections into the hash
 	for _, section := range sections {

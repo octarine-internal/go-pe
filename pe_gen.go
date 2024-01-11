@@ -71,6 +71,7 @@ type PeProfile struct {
     Off_WIN_CERTIFICATE_Length int64
     Off_WIN_CERTIFICATE_Revision int64
     Off_WIN_CERTIFICATE_CertificateType int64
+    Off_GENERIC_DIRECTORY_TimeDateStamp int64
     Off_GUID_Data1 int64
     Off_GUID_Data2 int64
     Off_GUID_Data3 int64
@@ -89,6 +90,7 @@ type PeProfile struct {
     Off_IMAGE_EXPORT_DIRECTORY_Name int64
     Off_IMAGE_EXPORT_DIRECTORY_NumberOfFunctions int64
     Off_IMAGE_EXPORT_DIRECTORY_NumberOfNames int64
+    Off_IMAGE_EXPORT_DIRECTORY_TimeDateStamp int64
     Off_IMAGE_EXPORT_DIRECTORY_ordinals int64
     Off_IMAGE_EXPORT_DIRECTORY_names int64
     Off_IMAGE_EXPORT_DIRECTORY_funcs64 int64
@@ -119,6 +121,7 @@ type PeProfile struct {
     Off_IMAGE_RESOURCE_DATA_ENTRY_CodePage int64
     Off_IMAGE_RESOURCE_DIRECTORY_NumberOfIdEntries int64
     Off_IMAGE_RESOURCE_DIRECTORY_NumberOfNamedEntries int64
+    Off_IMAGE_RESOURCE_DIRECTORY_TimeDateStamp int64
     Off_IMAGE_RESOURCE_DIRECTORY__Entries int64
     Off_IMAGE_RESOURCE_DIRECTORY_ENTRY_Type int64
     Off_IMAGE_RESOURCE_DIRECTORY_ENTRY_DataIsDirectory int64
@@ -152,7 +155,7 @@ type PeProfile struct {
 
 func NewPeProfile() *PeProfile {
     // Specific offsets can be tweaked to cater for slight version mismatches.
-    self := &PeProfile{0,4,20,24,0,4,8,0,4,0,2,4,0,2,0,2,4,6,0,2,4,6,0,2,4,6,0,2,4,6,0,4,6,0,4,6,8,4,0,20,4,12,60,0,28,36,32,16,12,20,24,0,0,0,18,0,2,16,4,4,2,0,12,0,4,24,0,64,96,28,0,60,112,24,0,60,0,4,8,14,12,16,0,4,0,0,4,4,36,0,20,16,12,0,0,0,0,0,0,0,0,32,36,56,32,36,56,8,16}
+    self := &PeProfile{0,4,20,24,0,4,8,0,4,0,2,4,0,2,0,2,4,6,0,2,4,6,0,2,4,6,0,2,4,6,0,4,6,4,0,4,6,8,4,0,20,4,12,60,0,28,36,32,16,12,20,24,4,0,0,0,18,0,2,16,4,4,2,0,12,0,4,24,0,64,96,28,0,60,112,24,0,60,0,4,8,14,12,4,16,0,4,0,0,4,4,36,0,20,16,12,0,0,0,0,0,0,0,0,32,36,56,32,36,56,8,16}
     return self
 }
 
@@ -194,6 +197,10 @@ func (self *PeProfile) VS_VERSIONINFO(reader io.ReaderAt, offset int64) *VS_VERS
 
 func (self *PeProfile) WIN_CERTIFICATE(reader io.ReaderAt, offset int64) *WIN_CERTIFICATE {
     return &WIN_CERTIFICATE{Reader: reader, Offset: offset, Profile: self}
+}
+
+func (self *PeProfile) GENERIC_DIRECTORY(reader io.ReaderAt, offset int64) *GENERIC_DIRECTORY {
+    return &GENERIC_DIRECTORY{Reader: reader, Offset: offset, Profile: self}
 }
 
 func (self *PeProfile) GUID(reader io.ReaderAt, offset int64) *GUID {
@@ -273,6 +280,12 @@ type CV_RSDS_HEADER struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _GUID *GUID
+
+    _Age uint32
+    _Age_cached bool
+
 }
 
 func (self *CV_RSDS_HEADER) Size() int {
@@ -285,11 +298,22 @@ func (self *CV_RSDS_HEADER) Signature() string {
 }
 
 func (self *CV_RSDS_HEADER) GUID() *GUID {
-    return self.Profile.GUID(self.Reader, self.Profile.Off_CV_RSDS_HEADER_GUID + self.Offset)
+    if self._GUID != nil {
+       return self._GUID
+    }
+    result := self.Profile.GUID(self.Reader, self.Profile.Off_CV_RSDS_HEADER_GUID + self.Offset)
+    self._GUID = result
+    return result
 }
 
 func (self *CV_RSDS_HEADER) Age() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_CV_RSDS_HEADER_Age + self.Offset)
+   if self._Age_cached {
+      return self._Age
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_CV_RSDS_HEADER_Age + self.Offset)
+   self._Age = result
+   self._Age_cached = true
+   return result
 }
 
 
@@ -309,6 +333,16 @@ type MESSAGE_RESOURCE_BLOCK struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _LowId uint32
+    _LowId_cached bool
+
+    _HighId uint32
+    _HighId_cached bool
+
+    _OffsetToEntries uint32
+    _OffsetToEntries_cached bool
+
 }
 
 func (self *MESSAGE_RESOURCE_BLOCK) Size() int {
@@ -316,15 +350,33 @@ func (self *MESSAGE_RESOURCE_BLOCK) Size() int {
 }
 
 func (self *MESSAGE_RESOURCE_BLOCK) LowId() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_MESSAGE_RESOURCE_BLOCK_LowId + self.Offset)
+   if self._LowId_cached {
+      return self._LowId
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_MESSAGE_RESOURCE_BLOCK_LowId + self.Offset)
+   self._LowId = result
+   self._LowId_cached = true
+   return result
 }
 
 func (self *MESSAGE_RESOURCE_BLOCK) HighId() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_MESSAGE_RESOURCE_BLOCK_HighId + self.Offset)
+   if self._HighId_cached {
+      return self._HighId
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_MESSAGE_RESOURCE_BLOCK_HighId + self.Offset)
+   self._HighId = result
+   self._HighId_cached = true
+   return result
 }
 
 func (self *MESSAGE_RESOURCE_BLOCK) OffsetToEntries() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_MESSAGE_RESOURCE_BLOCK_OffsetToEntries + self.Offset)
+   if self._OffsetToEntries_cached {
+      return self._OffsetToEntries
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_MESSAGE_RESOURCE_BLOCK_OffsetToEntries + self.Offset)
+   self._OffsetToEntries = result
+   self._OffsetToEntries_cached = true
+   return result
 }
 func (self *MESSAGE_RESOURCE_BLOCK) DebugString() string {
     result := fmt.Sprintf("struct MESSAGE_RESOURCE_BLOCK @ %#x:\n", self.Offset)
@@ -338,6 +390,13 @@ type MESSAGE_RESOURCE_DATA struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _NumberOfBlocks uint32
+    _NumberOfBlocks_cached bool
+
+    __Blocks []*MESSAGE_RESOURCE_BLOCK
+    __Blocks_cached bool
+
 }
 
 func (self *MESSAGE_RESOURCE_DATA) Size() int {
@@ -345,7 +404,13 @@ func (self *MESSAGE_RESOURCE_DATA) Size() int {
 }
 
 func (self *MESSAGE_RESOURCE_DATA) NumberOfBlocks() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_MESSAGE_RESOURCE_DATA_NumberOfBlocks + self.Offset)
+   if self._NumberOfBlocks_cached {
+      return self._NumberOfBlocks
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_MESSAGE_RESOURCE_DATA_NumberOfBlocks + self.Offset)
+   self._NumberOfBlocks = result
+   self._NumberOfBlocks_cached = true
+   return result
 }
 
 func (self *MESSAGE_RESOURCE_DATA) _Blocks() []*MESSAGE_RESOURCE_BLOCK {
@@ -361,6 +426,13 @@ type MESSAGE_RESOURCE_ENTRY struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _Length uint16
+    _Length_cached bool
+
+    _Flags uint16
+    _Flags_cached bool
+
 }
 
 func (self *MESSAGE_RESOURCE_ENTRY) Size() int {
@@ -368,11 +440,23 @@ func (self *MESSAGE_RESOURCE_ENTRY) Size() int {
 }
 
 func (self *MESSAGE_RESOURCE_ENTRY) Length() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_MESSAGE_RESOURCE_ENTRY_Length + self.Offset)
+   if self._Length_cached {
+       return self._Length
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_MESSAGE_RESOURCE_ENTRY_Length + self.Offset)
+   self._Length = result
+   self._Length_cached = true
+   return result
 }
 
 func (self *MESSAGE_RESOURCE_ENTRY) Flags() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_MESSAGE_RESOURCE_ENTRY_Flags + self.Offset)
+   if self._Flags_cached {
+       return self._Flags
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_MESSAGE_RESOURCE_ENTRY_Flags + self.Offset)
+   self._Flags = result
+   self._Flags_cached = true
+   return result
 }
 
 
@@ -391,6 +475,13 @@ type PrefixedString struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _Length uint16
+    _Length_cached bool
+
+    __Buffer uint8
+    __Buffer_cached bool
+
 }
 
 func (self *PrefixedString) Size() int {
@@ -398,11 +489,23 @@ func (self *PrefixedString) Size() int {
 }
 
 func (self *PrefixedString) Length() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_PrefixedString_Length + self.Offset)
+   if self._Length_cached {
+       return self._Length
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_PrefixedString_Length + self.Offset)
+   self._Length = result
+   self._Length_cached = true
+   return result
 }
 
 func (self *PrefixedString) _Buffer() byte {
-   return ParseUint8(self.Reader, self.Profile.Off_PrefixedString__Buffer + self.Offset)
+   if self.__Buffer_cached {
+       return self.__Buffer
+   }
+   result := ParseUint8(self.Reader, self.Profile.Off_PrefixedString__Buffer + self.Offset)
+   self.__Buffer = result
+   self.__Buffer_cached = true
+   return result
 }
 func (self *PrefixedString) DebugString() string {
     result := fmt.Sprintf("struct PrefixedString @ %#x:\n", self.Offset)
@@ -415,6 +518,16 @@ type ResourceString struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _Length uint16
+    _Length_cached bool
+
+    _ValueLength uint16
+    _ValueLength_cached bool
+
+    _Type uint16
+    _Type_cached bool
+
 }
 
 func (self *ResourceString) Size() int {
@@ -422,15 +535,33 @@ func (self *ResourceString) Size() int {
 }
 
 func (self *ResourceString) Length() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_ResourceString_Length + self.Offset)
+   if self._Length_cached {
+       return self._Length
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_ResourceString_Length + self.Offset)
+   self._Length = result
+   self._Length_cached = true
+   return result
 }
 
 func (self *ResourceString) ValueLength() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_ResourceString_ValueLength + self.Offset)
+   if self._ValueLength_cached {
+       return self._ValueLength
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_ResourceString_ValueLength + self.Offset)
+   self._ValueLength = result
+   self._ValueLength_cached = true
+   return result
 }
 
 func (self *ResourceString) Type() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_ResourceString_Type + self.Offset)
+   if self._Type_cached {
+       return self._Type
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_ResourceString_Type + self.Offset)
+   self._Type = result
+   self._Type_cached = true
+   return result
 }
 
 
@@ -450,6 +581,16 @@ type StringFileInfo struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _Length uint16
+    _Length_cached bool
+
+    _ValueLength uint16
+    _ValueLength_cached bool
+
+    _Type uint16
+    _Type_cached bool
+
 }
 
 func (self *StringFileInfo) Size() int {
@@ -457,15 +598,33 @@ func (self *StringFileInfo) Size() int {
 }
 
 func (self *StringFileInfo) Length() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_StringFileInfo_Length + self.Offset)
+   if self._Length_cached {
+       return self._Length
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_StringFileInfo_Length + self.Offset)
+   self._Length = result
+   self._Length_cached = true
+   return result
 }
 
 func (self *StringFileInfo) ValueLength() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_StringFileInfo_ValueLength + self.Offset)
+   if self._ValueLength_cached {
+       return self._ValueLength
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_StringFileInfo_ValueLength + self.Offset)
+   self._ValueLength = result
+   self._ValueLength_cached = true
+   return result
 }
 
 func (self *StringFileInfo) Type() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_StringFileInfo_Type + self.Offset)
+   if self._Type_cached {
+       return self._Type
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_StringFileInfo_Type + self.Offset)
+   self._Type = result
+   self._Type_cached = true
+   return result
 }
 
 
@@ -485,6 +644,16 @@ type StringTable struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _Length uint16
+    _Length_cached bool
+
+    _ValueLength uint16
+    _ValueLength_cached bool
+
+    _Type uint16
+    _Type_cached bool
+
 }
 
 func (self *StringTable) Size() int {
@@ -492,15 +661,33 @@ func (self *StringTable) Size() int {
 }
 
 func (self *StringTable) Length() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_StringTable_Length + self.Offset)
+   if self._Length_cached {
+       return self._Length
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_StringTable_Length + self.Offset)
+   self._Length = result
+   self._Length_cached = true
+   return result
 }
 
 func (self *StringTable) ValueLength() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_StringTable_ValueLength + self.Offset)
+   if self._ValueLength_cached {
+       return self._ValueLength
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_StringTable_ValueLength + self.Offset)
+   self._ValueLength = result
+   self._ValueLength_cached = true
+   return result
 }
 
 func (self *StringTable) Type() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_StringTable_Type + self.Offset)
+   if self._Type_cached {
+       return self._Type
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_StringTable_Type + self.Offset)
+   self._Type = result
+   self._Type_cached = true
+   return result
 }
 
 
@@ -520,6 +707,13 @@ type VS_VERSIONINFO struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _Length uint16
+    _Length_cached bool
+
+    _ValueLength uint16
+    _ValueLength_cached bool
+
 }
 
 func (self *VS_VERSIONINFO) Size() int {
@@ -527,11 +721,23 @@ func (self *VS_VERSIONINFO) Size() int {
 }
 
 func (self *VS_VERSIONINFO) Length() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_VS_VERSIONINFO_Length + self.Offset)
+   if self._Length_cached {
+       return self._Length
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_VS_VERSIONINFO_Length + self.Offset)
+   self._Length = result
+   self._Length_cached = true
+   return result
 }
 
 func (self *VS_VERSIONINFO) ValueLength() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_VS_VERSIONINFO_ValueLength + self.Offset)
+   if self._ValueLength_cached {
+       return self._ValueLength
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_VS_VERSIONINFO_ValueLength + self.Offset)
+   self._ValueLength = result
+   self._ValueLength_cached = true
+   return result
 }
 
 func (self *VS_VERSIONINFO) Type() *Enumeration {
@@ -566,6 +772,16 @@ type WIN_CERTIFICATE struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _Length uint32
+    _Length_cached bool
+
+    _Revision uint16
+    _Revision_cached bool
+
+    _CertificateType uint16
+    _CertificateType_cached bool
+
 }
 
 func (self *WIN_CERTIFICATE) Size() int {
@@ -573,15 +789,33 @@ func (self *WIN_CERTIFICATE) Size() int {
 }
 
 func (self *WIN_CERTIFICATE) Length() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_WIN_CERTIFICATE_Length + self.Offset)
+   if self._Length_cached {
+      return self._Length
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_WIN_CERTIFICATE_Length + self.Offset)
+   self._Length = result
+   self._Length_cached = true
+   return result
 }
 
 func (self *WIN_CERTIFICATE) Revision() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_WIN_CERTIFICATE_Revision + self.Offset)
+   if self._Revision_cached {
+       return self._Revision
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_WIN_CERTIFICATE_Revision + self.Offset)
+   self._Revision = result
+   self._Revision_cached = true
+   return result
 }
 
 func (self *WIN_CERTIFICATE) CertificateType() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_WIN_CERTIFICATE_CertificateType + self.Offset)
+   if self._CertificateType_cached {
+       return self._CertificateType
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_WIN_CERTIFICATE_CertificateType + self.Offset)
+   self._CertificateType = result
+   self._CertificateType_cached = true
+   return result
 }
 func (self *WIN_CERTIFICATE) DebugString() string {
     result := fmt.Sprintf("struct WIN_CERTIFICATE @ %#x:\n", self.Offset)
@@ -591,10 +825,50 @@ func (self *WIN_CERTIFICATE) DebugString() string {
     return result
 }
 
+type GENERIC_DIRECTORY struct {
+    Reader io.ReaderAt
+    Offset int64
+    Profile *PeProfile
+    
+    _TimeDateStamp *UnixTimeStamp32
+
+}
+
+func (self *GENERIC_DIRECTORY) Size() int {
+    return 16
+}
+
+func (self *GENERIC_DIRECTORY) TimeDateStamp() *UnixTimeStamp32 {
+    if self._TimeDateStamp != nil {
+       return self._TimeDateStamp
+    }
+    result := self.Profile.UnixTimeStamp32(self.Reader, self.Profile.Off_GENERIC_DIRECTORY_TimeDateStamp + self.Offset)
+    self._TimeDateStamp = result
+    return result
+}
+func (self *GENERIC_DIRECTORY) DebugString() string {
+    result := fmt.Sprintf("struct GENERIC_DIRECTORY @ %#x:\n", self.Offset)
+    result += fmt.Sprintf("  TimeDateStamp: {\n%v}\n", indent(self.TimeDateStamp().DebugString()))
+    return result
+}
+
 type GUID struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _Data1 uint32
+    _Data1_cached bool
+
+    _Data2 uint16
+    _Data2_cached bool
+
+    _Data3 uint16
+    _Data3_cached bool
+
+    _Data4 []byte
+    _Data4_cached bool
+
 }
 
 func (self *GUID) Size() int {
@@ -602,15 +876,33 @@ func (self *GUID) Size() int {
 }
 
 func (self *GUID) Data1() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_GUID_Data1 + self.Offset)
+   if self._Data1_cached {
+      return self._Data1
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_GUID_Data1 + self.Offset)
+   self._Data1 = result
+   self._Data1_cached = true
+   return result
 }
 
 func (self *GUID) Data2() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_GUID_Data2 + self.Offset)
+   if self._Data2_cached {
+       return self._Data2
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_GUID_Data2 + self.Offset)
+   self._Data2 = result
+   self._Data2_cached = true
+   return result
 }
 
 func (self *GUID) Data3() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_GUID_Data3 + self.Offset)
+   if self._Data3_cached {
+       return self._Data3
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_GUID_Data3 + self.Offset)
+   self._Data3 = result
+   self._Data3_cached = true
+   return result
 }
 
 func (self *GUID) Data4() []byte {
@@ -628,6 +920,13 @@ type IMAGE_DATA_DIRECTORY struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _DirSize uint32
+    _DirSize_cached bool
+
+    _VirtualAddress uint32
+    _VirtualAddress_cached bool
+
 }
 
 func (self *IMAGE_DATA_DIRECTORY) Size() int {
@@ -635,11 +934,23 @@ func (self *IMAGE_DATA_DIRECTORY) Size() int {
 }
 
 func (self *IMAGE_DATA_DIRECTORY) DirSize() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_DATA_DIRECTORY_DirSize + self.Offset)
+   if self._DirSize_cached {
+      return self._DirSize
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_DATA_DIRECTORY_DirSize + self.Offset)
+   self._DirSize = result
+   self._DirSize_cached = true
+   return result
 }
 
 func (self *IMAGE_DATA_DIRECTORY) VirtualAddress() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_DATA_DIRECTORY_VirtualAddress + self.Offset)
+   if self._VirtualAddress_cached {
+      return self._VirtualAddress
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_DATA_DIRECTORY_VirtualAddress + self.Offset)
+   self._VirtualAddress = result
+   self._VirtualAddress_cached = true
+   return result
 }
 func (self *IMAGE_DATA_DIRECTORY) DebugString() string {
     result := fmt.Sprintf("struct IMAGE_DATA_DIRECTORY @ %#x:\n", self.Offset)
@@ -652,6 +963,12 @@ type IMAGE_DEBUG_DIRECTORY struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _AddressOfRawData uint32
+    _AddressOfRawData_cached bool
+
+    _TimeDateStamp *UnixTimeStamp32
+
 }
 
 func (self *IMAGE_DEBUG_DIRECTORY) Size() int {
@@ -659,11 +976,22 @@ func (self *IMAGE_DEBUG_DIRECTORY) Size() int {
 }
 
 func (self *IMAGE_DEBUG_DIRECTORY) AddressOfRawData() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_DEBUG_DIRECTORY_AddressOfRawData + self.Offset)
+   if self._AddressOfRawData_cached {
+      return self._AddressOfRawData
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_DEBUG_DIRECTORY_AddressOfRawData + self.Offset)
+   self._AddressOfRawData = result
+   self._AddressOfRawData_cached = true
+   return result
 }
 
-func (self *IMAGE_DEBUG_DIRECTORY) TimeDateStamp() *UnixTimeStamp {
-    return self.Profile.UnixTimeStamp(self.Reader, self.Profile.Off_IMAGE_DEBUG_DIRECTORY_TimeDateStamp + self.Offset)
+func (self *IMAGE_DEBUG_DIRECTORY) TimeDateStamp() *UnixTimeStamp32 {
+    if self._TimeDateStamp != nil {
+       return self._TimeDateStamp
+    }
+    result := self.Profile.UnixTimeStamp32(self.Reader, self.Profile.Off_IMAGE_DEBUG_DIRECTORY_TimeDateStamp + self.Offset)
+    self._TimeDateStamp = result
+    return result
 }
 
 func (self *IMAGE_DEBUG_DIRECTORY) Type() *Enumeration {
@@ -719,6 +1047,13 @@ type IMAGE_DOS_HEADER struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _E_lfanew int32
+    _E_lfanew_cached bool
+
+    _E_magic uint16
+    _E_magic_cached bool
+
 }
 
 func (self *IMAGE_DOS_HEADER) Size() int {
@@ -726,11 +1061,23 @@ func (self *IMAGE_DOS_HEADER) Size() int {
 }
 
 func (self *IMAGE_DOS_HEADER) E_lfanew() int32 {
-   return ParseInt32(self.Reader, self.Profile.Off_IMAGE_DOS_HEADER_E_lfanew + self.Offset)
+   if self._E_lfanew_cached {
+     return self._E_lfanew
+   }
+   result := ParseInt32(self.Reader, self.Profile.Off_IMAGE_DOS_HEADER_E_lfanew + self.Offset)
+   self._E_lfanew = result
+   self._E_lfanew_cached = true
+   return result
 }
 
 func (self *IMAGE_DOS_HEADER) E_magic() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_IMAGE_DOS_HEADER_E_magic + self.Offset)
+   if self._E_magic_cached {
+       return self._E_magic
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_IMAGE_DOS_HEADER_E_magic + self.Offset)
+   self._E_magic = result
+   self._E_magic_cached = true
+   return result
 }
 func (self *IMAGE_DOS_HEADER) DebugString() string {
     result := fmt.Sprintf("struct IMAGE_DOS_HEADER @ %#x:\n", self.Offset)
@@ -743,6 +1090,39 @@ type IMAGE_EXPORT_DIRECTORY struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _AddressOfFunctions uint32
+    _AddressOfFunctions_cached bool
+
+    _AddressOfNameOrdinals uint32
+    _AddressOfNameOrdinals_cached bool
+
+    _AddressOfNames uint32
+    _AddressOfNames_cached bool
+
+    _Base uint32
+    _Base_cached bool
+
+    _Name uint32
+    _Name_cached bool
+
+    _NumberOfFunctions uint32
+    _NumberOfFunctions_cached bool
+
+    _NumberOfNames uint32
+    _NumberOfNames_cached bool
+
+    _TimeDateStamp *UnixTimeStamp32
+
+    _ordinals []uint16
+    _ordinals_cached bool
+
+    _names []uint32
+    _names_cached bool
+
+    _funcs64 []uint64
+    _funcs64_cached bool
+
 }
 
 func (self *IMAGE_EXPORT_DIRECTORY) Size() int {
@@ -750,31 +1130,82 @@ func (self *IMAGE_EXPORT_DIRECTORY) Size() int {
 }
 
 func (self *IMAGE_EXPORT_DIRECTORY) AddressOfFunctions() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_EXPORT_DIRECTORY_AddressOfFunctions + self.Offset)
+   if self._AddressOfFunctions_cached {
+      return self._AddressOfFunctions
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_EXPORT_DIRECTORY_AddressOfFunctions + self.Offset)
+   self._AddressOfFunctions = result
+   self._AddressOfFunctions_cached = true
+   return result
 }
 
 func (self *IMAGE_EXPORT_DIRECTORY) AddressOfNameOrdinals() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_EXPORT_DIRECTORY_AddressOfNameOrdinals + self.Offset)
+   if self._AddressOfNameOrdinals_cached {
+      return self._AddressOfNameOrdinals
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_EXPORT_DIRECTORY_AddressOfNameOrdinals + self.Offset)
+   self._AddressOfNameOrdinals = result
+   self._AddressOfNameOrdinals_cached = true
+   return result
 }
 
 func (self *IMAGE_EXPORT_DIRECTORY) AddressOfNames() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_EXPORT_DIRECTORY_AddressOfNames + self.Offset)
+   if self._AddressOfNames_cached {
+      return self._AddressOfNames
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_EXPORT_DIRECTORY_AddressOfNames + self.Offset)
+   self._AddressOfNames = result
+   self._AddressOfNames_cached = true
+   return result
 }
 
 func (self *IMAGE_EXPORT_DIRECTORY) Base() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_EXPORT_DIRECTORY_Base + self.Offset)
+   if self._Base_cached {
+      return self._Base
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_EXPORT_DIRECTORY_Base + self.Offset)
+   self._Base = result
+   self._Base_cached = true
+   return result
 }
 
 func (self *IMAGE_EXPORT_DIRECTORY) Name() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_EXPORT_DIRECTORY_Name + self.Offset)
+   if self._Name_cached {
+      return self._Name
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_EXPORT_DIRECTORY_Name + self.Offset)
+   self._Name = result
+   self._Name_cached = true
+   return result
 }
 
 func (self *IMAGE_EXPORT_DIRECTORY) NumberOfFunctions() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_EXPORT_DIRECTORY_NumberOfFunctions + self.Offset)
+   if self._NumberOfFunctions_cached {
+      return self._NumberOfFunctions
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_EXPORT_DIRECTORY_NumberOfFunctions + self.Offset)
+   self._NumberOfFunctions = result
+   self._NumberOfFunctions_cached = true
+   return result
 }
 
 func (self *IMAGE_EXPORT_DIRECTORY) NumberOfNames() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_EXPORT_DIRECTORY_NumberOfNames + self.Offset)
+   if self._NumberOfNames_cached {
+      return self._NumberOfNames
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_EXPORT_DIRECTORY_NumberOfNames + self.Offset)
+   self._NumberOfNames = result
+   self._NumberOfNames_cached = true
+   return result
+}
+
+func (self *IMAGE_EXPORT_DIRECTORY) TimeDateStamp() *UnixTimeStamp32 {
+    if self._TimeDateStamp != nil {
+       return self._TimeDateStamp
+    }
+    result := self.Profile.UnixTimeStamp32(self.Reader, self.Profile.Off_IMAGE_EXPORT_DIRECTORY_TimeDateStamp + self.Offset)
+    self._TimeDateStamp = result
+    return result
 }
 
 func (self *IMAGE_EXPORT_DIRECTORY) ordinals() []uint16 {
@@ -797,6 +1228,7 @@ func (self *IMAGE_EXPORT_DIRECTORY) DebugString() string {
     result += fmt.Sprintf("  Name: %#0x\n", self.Name())
     result += fmt.Sprintf("  NumberOfFunctions: %#0x\n", self.NumberOfFunctions())
     result += fmt.Sprintf("  NumberOfNames: %#0x\n", self.NumberOfNames())
+    result += fmt.Sprintf("  TimeDateStamp: {\n%v}\n", indent(self.TimeDateStamp().DebugString()))
     return result
 }
 
@@ -804,6 +1236,21 @@ type IMAGE_FILE_HEADER struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _Characteristics uint16
+    _Characteristics_cached bool
+
+    _NumberOfSections uint16
+    _NumberOfSections_cached bool
+
+    _SizeOfOptionalHeader uint16
+    _SizeOfOptionalHeader_cached bool
+
+    _TimeDateStamp *UnixTimeStamp32
+
+    _TimeDateStampRaw uint32
+    _TimeDateStampRaw_cached bool
+
 }
 
 func (self *IMAGE_FILE_HEADER) Size() int {
@@ -811,7 +1258,13 @@ func (self *IMAGE_FILE_HEADER) Size() int {
 }
 
 func (self *IMAGE_FILE_HEADER) Characteristics() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_IMAGE_FILE_HEADER_Characteristics + self.Offset)
+   if self._Characteristics_cached {
+       return self._Characteristics
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_IMAGE_FILE_HEADER_Characteristics + self.Offset)
+   self._Characteristics = result
+   self._Characteristics_cached = true
+   return result
 }
 
 func (self *IMAGE_FILE_HEADER) Machine() *Enumeration {
@@ -836,19 +1289,42 @@ func (self *IMAGE_FILE_HEADER) Machine() *Enumeration {
 
 
 func (self *IMAGE_FILE_HEADER) NumberOfSections() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_IMAGE_FILE_HEADER_NumberOfSections + self.Offset)
+   if self._NumberOfSections_cached {
+       return self._NumberOfSections
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_IMAGE_FILE_HEADER_NumberOfSections + self.Offset)
+   self._NumberOfSections = result
+   self._NumberOfSections_cached = true
+   return result
 }
 
 func (self *IMAGE_FILE_HEADER) SizeOfOptionalHeader() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_IMAGE_FILE_HEADER_SizeOfOptionalHeader + self.Offset)
+   if self._SizeOfOptionalHeader_cached {
+       return self._SizeOfOptionalHeader
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_IMAGE_FILE_HEADER_SizeOfOptionalHeader + self.Offset)
+   self._SizeOfOptionalHeader = result
+   self._SizeOfOptionalHeader_cached = true
+   return result
 }
 
-func (self *IMAGE_FILE_HEADER) TimeDateStamp() *UnixTimeStamp {
-    return self.Profile.UnixTimeStamp(self.Reader, self.Profile.Off_IMAGE_FILE_HEADER_TimeDateStamp + self.Offset)
+func (self *IMAGE_FILE_HEADER) TimeDateStamp() *UnixTimeStamp32 {
+    if self._TimeDateStamp != nil {
+       return self._TimeDateStamp
+    }
+    result := self.Profile.UnixTimeStamp32(self.Reader, self.Profile.Off_IMAGE_FILE_HEADER_TimeDateStamp + self.Offset)
+    self._TimeDateStamp = result
+    return result
 }
 
 func (self *IMAGE_FILE_HEADER) TimeDateStampRaw() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_FILE_HEADER_TimeDateStampRaw + self.Offset)
+   if self._TimeDateStampRaw_cached {
+      return self._TimeDateStampRaw
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_FILE_HEADER_TimeDateStampRaw + self.Offset)
+   self._TimeDateStampRaw = result
+   self._TimeDateStampRaw_cached = true
+   return result
 }
 func (self *IMAGE_FILE_HEADER) DebugString() string {
     result := fmt.Sprintf("struct IMAGE_FILE_HEADER @ %#x:\n", self.Offset)
@@ -865,6 +1341,7 @@ type IMAGE_IMPORT_BY_NAME struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
 }
 
 func (self *IMAGE_IMPORT_BY_NAME) Size() int {
@@ -885,6 +1362,16 @@ type IMAGE_IMPORT_DESCRIPTOR struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _Characteristics uint32
+    _Characteristics_cached bool
+
+    _Name uint32
+    _Name_cached bool
+
+    _OriginalFirstThunk uint32
+    _OriginalFirstThunk_cached bool
+
 }
 
 func (self *IMAGE_IMPORT_DESCRIPTOR) Size() int {
@@ -892,15 +1379,33 @@ func (self *IMAGE_IMPORT_DESCRIPTOR) Size() int {
 }
 
 func (self *IMAGE_IMPORT_DESCRIPTOR) Characteristics() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_IMPORT_DESCRIPTOR_Characteristics + self.Offset)
+   if self._Characteristics_cached {
+      return self._Characteristics
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_IMPORT_DESCRIPTOR_Characteristics + self.Offset)
+   self._Characteristics = result
+   self._Characteristics_cached = true
+   return result
 }
 
 func (self *IMAGE_IMPORT_DESCRIPTOR) Name() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_IMPORT_DESCRIPTOR_Name + self.Offset)
+   if self._Name_cached {
+      return self._Name
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_IMPORT_DESCRIPTOR_Name + self.Offset)
+   self._Name = result
+   self._Name_cached = true
+   return result
 }
 
 func (self *IMAGE_IMPORT_DESCRIPTOR) OriginalFirstThunk() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_IMPORT_DESCRIPTOR_OriginalFirstThunk + self.Offset)
+   if self._OriginalFirstThunk_cached {
+      return self._OriginalFirstThunk
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_IMPORT_DESCRIPTOR_OriginalFirstThunk + self.Offset)
+   self._OriginalFirstThunk = result
+   self._OriginalFirstThunk_cached = true
+   return result
 }
 
 func (self *IMAGE_IMPORT_DESCRIPTOR) FirstThunk() uint32 {
@@ -919,6 +1424,14 @@ type IMAGE_NT_HEADERS struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _FileHeader *IMAGE_FILE_HEADER
+
+    _OptionalHeader *IMAGE_OPTIONAL_HEADER
+
+    _Signature uint32
+    _Signature_cached bool
+
 }
 
 func (self *IMAGE_NT_HEADERS) Size() int {
@@ -926,15 +1439,31 @@ func (self *IMAGE_NT_HEADERS) Size() int {
 }
 
 func (self *IMAGE_NT_HEADERS) FileHeader() *IMAGE_FILE_HEADER {
-    return self.Profile.IMAGE_FILE_HEADER(self.Reader, self.Profile.Off_IMAGE_NT_HEADERS_FileHeader + self.Offset)
+    if self._FileHeader != nil {
+       return self._FileHeader
+    }
+    result := self.Profile.IMAGE_FILE_HEADER(self.Reader, self.Profile.Off_IMAGE_NT_HEADERS_FileHeader + self.Offset)
+    self._FileHeader = result
+    return result
 }
 
 func (self *IMAGE_NT_HEADERS) OptionalHeader() *IMAGE_OPTIONAL_HEADER {
-    return self.Profile.IMAGE_OPTIONAL_HEADER(self.Reader, self.Profile.Off_IMAGE_NT_HEADERS_OptionalHeader + self.Offset)
+    if self._OptionalHeader != nil {
+       return self._OptionalHeader
+    }
+    result := self.Profile.IMAGE_OPTIONAL_HEADER(self.Reader, self.Profile.Off_IMAGE_NT_HEADERS_OptionalHeader + self.Offset)
+    self._OptionalHeader = result
+    return result
 }
 
 func (self *IMAGE_NT_HEADERS) Signature() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_NT_HEADERS_Signature + self.Offset)
+   if self._Signature_cached {
+      return self._Signature
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_NT_HEADERS_Signature + self.Offset)
+   self._Signature = result
+   self._Signature_cached = true
+   return result
 }
 func (self *IMAGE_NT_HEADERS) DebugString() string {
     result := fmt.Sprintf("struct IMAGE_NT_HEADERS @ %#x:\n", self.Offset)
@@ -948,6 +1477,22 @@ type IMAGE_OPTIONAL_HEADER struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _CheckSum uint32
+    _CheckSum_cached bool
+
+    _DataDirectory []*IMAGE_DATA_DIRECTORY
+    _DataDirectory_cached bool
+
+    _ImageBase uint32
+    _ImageBase_cached bool
+
+    _Magic uint16
+    _Magic_cached bool
+
+    _SizeOfHeaders uint32
+    _SizeOfHeaders_cached bool
+
 }
 
 func (self *IMAGE_OPTIONAL_HEADER) Size() int {
@@ -955,7 +1500,13 @@ func (self *IMAGE_OPTIONAL_HEADER) Size() int {
 }
 
 func (self *IMAGE_OPTIONAL_HEADER) CheckSum() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER_CheckSum + self.Offset)
+   if self._CheckSum_cached {
+      return self._CheckSum
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER_CheckSum + self.Offset)
+   self._CheckSum = result
+   self._CheckSum_cached = true
+   return result
 }
 
 func (self *IMAGE_OPTIONAL_HEADER) DataDirectory() []*IMAGE_DATA_DIRECTORY {
@@ -963,7 +1514,13 @@ func (self *IMAGE_OPTIONAL_HEADER) DataDirectory() []*IMAGE_DATA_DIRECTORY {
 }
 
 func (self *IMAGE_OPTIONAL_HEADER) ImageBase() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER_ImageBase + self.Offset)
+   if self._ImageBase_cached {
+      return self._ImageBase
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER_ImageBase + self.Offset)
+   self._ImageBase = result
+   self._ImageBase_cached = true
+   return result
 }
 
 func (self *IMAGE_OPTIONAL_HEADER) SectionAlignment() uint32 {
@@ -975,7 +1532,13 @@ func (self *IMAGE_OPTIONAL_HEADER) FileAlignment() uint32 {
 }
 
 func (self *IMAGE_OPTIONAL_HEADER) Magic() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER_Magic + self.Offset)
+   if self._Magic_cached {
+       return self._Magic
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER_Magic + self.Offset)
+   self._Magic = result
+   self._Magic_cached = true
+   return result
 }
 
 func (self *IMAGE_OPTIONAL_HEADER) SizeOfImage() uint32 {
@@ -983,7 +1546,13 @@ func (self *IMAGE_OPTIONAL_HEADER) SizeOfImage() uint32 {
 }
 
 func (self *IMAGE_OPTIONAL_HEADER) SizeOfHeaders() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER_SizeOfHeaders + self.Offset)
+   if self._SizeOfHeaders_cached {
+      return self._SizeOfHeaders
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER_SizeOfHeaders + self.Offset)
+   self._SizeOfHeaders = result
+   self._SizeOfHeaders_cached = true
+   return result
 }
 func (self *IMAGE_OPTIONAL_HEADER) DebugString() string {
     result := fmt.Sprintf("struct IMAGE_OPTIONAL_HEADER @ %#x:\n", self.Offset)
@@ -1001,6 +1570,19 @@ type IMAGE_OPTIONAL_HEADER64 struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _DataDirectory []*IMAGE_DATA_DIRECTORY
+    _DataDirectory_cached bool
+
+    _ImageBase uint64
+    _ImageBase_cached bool
+
+    _Magic uint16
+    _Magic_cached bool
+
+    _SizeOfHeaders uint32
+    _SizeOfHeaders_cached bool
+
 }
 
 func (self *IMAGE_OPTIONAL_HEADER64) Size() int {
@@ -1012,7 +1594,13 @@ func (self *IMAGE_OPTIONAL_HEADER64) DataDirectory() []*IMAGE_DATA_DIRECTORY {
 }
 
 func (self *IMAGE_OPTIONAL_HEADER64) ImageBase() uint64 {
-    return ParseUint64(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER64_ImageBase + self.Offset)
+    if self._ImageBase_cached {
+        return self._ImageBase
+    }
+    result := ParseUint64(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER64_ImageBase + self.Offset)
+    self._ImageBase = result
+    self._ImageBase_cached = true
+    return result
 }
 
 func (self *IMAGE_OPTIONAL_HEADER64) SectionAlignment() uint32 {
@@ -1024,7 +1612,13 @@ func (self *IMAGE_OPTIONAL_HEADER64) FileAlignment() uint32 {
 }
 
 func (self *IMAGE_OPTIONAL_HEADER64) Magic() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER64_Magic + self.Offset)
+   if self._Magic_cached {
+       return self._Magic
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER64_Magic + self.Offset)
+   self._Magic = result
+   self._Magic_cached = true
+   return result
 }
 
 func (self *IMAGE_OPTIONAL_HEADER64) SizeOfImage() uint32 {
@@ -1032,7 +1626,13 @@ func (self *IMAGE_OPTIONAL_HEADER64) SizeOfImage() uint32 {
 }
 
 func (self *IMAGE_OPTIONAL_HEADER64) SizeOfHeaders() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER64_SizeOfHeaders + self.Offset)
+   if self._SizeOfHeaders_cached {
+      return self._SizeOfHeaders
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_OPTIONAL_HEADER64_SizeOfHeaders + self.Offset)
+   self._SizeOfHeaders = result
+   self._SizeOfHeaders_cached = true
+   return result
 }
 func (self *IMAGE_OPTIONAL_HEADER64) DebugString() string {
     result := fmt.Sprintf("struct IMAGE_OPTIONAL_HEADER64 @ %#x:\n", self.Offset)
@@ -1049,6 +1649,16 @@ type IMAGE_RESOURCE_DATA_ENTRY struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _OffsetToData uint32
+    _OffsetToData_cached bool
+
+    _DataSize uint32
+    _DataSize_cached bool
+
+    _CodePage uint32
+    _CodePage_cached bool
+
 }
 
 func (self *IMAGE_RESOURCE_DATA_ENTRY) Size() int {
@@ -1056,15 +1666,33 @@ func (self *IMAGE_RESOURCE_DATA_ENTRY) Size() int {
 }
 
 func (self *IMAGE_RESOURCE_DATA_ENTRY) OffsetToData() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_RESOURCE_DATA_ENTRY_OffsetToData + self.Offset)
+   if self._OffsetToData_cached {
+      return self._OffsetToData
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_RESOURCE_DATA_ENTRY_OffsetToData + self.Offset)
+   self._OffsetToData = result
+   self._OffsetToData_cached = true
+   return result
 }
 
 func (self *IMAGE_RESOURCE_DATA_ENTRY) DataSize() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_RESOURCE_DATA_ENTRY_DataSize + self.Offset)
+   if self._DataSize_cached {
+      return self._DataSize
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_RESOURCE_DATA_ENTRY_DataSize + self.Offset)
+   self._DataSize = result
+   self._DataSize_cached = true
+   return result
 }
 
 func (self *IMAGE_RESOURCE_DATA_ENTRY) CodePage() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_RESOURCE_DATA_ENTRY_CodePage + self.Offset)
+   if self._CodePage_cached {
+      return self._CodePage
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_RESOURCE_DATA_ENTRY_CodePage + self.Offset)
+   self._CodePage = result
+   self._CodePage_cached = true
+   return result
 }
 func (self *IMAGE_RESOURCE_DATA_ENTRY) DebugString() string {
     result := fmt.Sprintf("struct IMAGE_RESOURCE_DATA_ENTRY @ %#x:\n", self.Offset)
@@ -1078,6 +1706,18 @@ type IMAGE_RESOURCE_DIRECTORY struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _NumberOfIdEntries uint16
+    _NumberOfIdEntries_cached bool
+
+    _NumberOfNamedEntries uint16
+    _NumberOfNamedEntries_cached bool
+
+    _TimeDateStamp *UnixTimeStamp32
+
+    __Entries []*IMAGE_RESOURCE_DIRECTORY_ENTRY
+    __Entries_cached bool
+
 }
 
 func (self *IMAGE_RESOURCE_DIRECTORY) Size() int {
@@ -1085,11 +1725,32 @@ func (self *IMAGE_RESOURCE_DIRECTORY) Size() int {
 }
 
 func (self *IMAGE_RESOURCE_DIRECTORY) NumberOfIdEntries() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_IMAGE_RESOURCE_DIRECTORY_NumberOfIdEntries + self.Offset)
+   if self._NumberOfIdEntries_cached {
+       return self._NumberOfIdEntries
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_IMAGE_RESOURCE_DIRECTORY_NumberOfIdEntries + self.Offset)
+   self._NumberOfIdEntries = result
+   self._NumberOfIdEntries_cached = true
+   return result
 }
 
 func (self *IMAGE_RESOURCE_DIRECTORY) NumberOfNamedEntries() uint16 {
-   return ParseUint16(self.Reader, self.Profile.Off_IMAGE_RESOURCE_DIRECTORY_NumberOfNamedEntries + self.Offset)
+   if self._NumberOfNamedEntries_cached {
+       return self._NumberOfNamedEntries
+   }
+   result := ParseUint16(self.Reader, self.Profile.Off_IMAGE_RESOURCE_DIRECTORY_NumberOfNamedEntries + self.Offset)
+   self._NumberOfNamedEntries = result
+   self._NumberOfNamedEntries_cached = true
+   return result
+}
+
+func (self *IMAGE_RESOURCE_DIRECTORY) TimeDateStamp() *UnixTimeStamp32 {
+    if self._TimeDateStamp != nil {
+       return self._TimeDateStamp
+    }
+    result := self.Profile.UnixTimeStamp32(self.Reader, self.Profile.Off_IMAGE_RESOURCE_DIRECTORY_TimeDateStamp + self.Offset)
+    self._TimeDateStamp = result
+    return result
 }
 
 func (self *IMAGE_RESOURCE_DIRECTORY) _Entries() []*IMAGE_RESOURCE_DIRECTORY_ENTRY {
@@ -1099,6 +1760,7 @@ func (self *IMAGE_RESOURCE_DIRECTORY) DebugString() string {
     result := fmt.Sprintf("struct IMAGE_RESOURCE_DIRECTORY @ %#x:\n", self.Offset)
     result += fmt.Sprintf("  NumberOfIdEntries: %#0x\n", self.NumberOfIdEntries())
     result += fmt.Sprintf("  NumberOfNamedEntries: %#0x\n", self.NumberOfNamedEntries())
+    result += fmt.Sprintf("  TimeDateStamp: {\n%v}\n", indent(self.TimeDateStamp().DebugString()))
     return result
 }
 
@@ -1106,6 +1768,22 @@ type IMAGE_RESOURCE_DIRECTORY_ENTRY struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _DataIsDirectory uint64
+    _DataIsDirectory_cached bool
+
+    _NameIsString uint64
+    _NameIsString_cached bool
+
+    _NameOffset uint64
+    _NameOffset_cached bool
+
+    _OffsetToData uint64
+    _OffsetToData_cached bool
+
+    _OffsetToDirectory uint64
+    _OffsetToDirectory_cached bool
+
 }
 
 func (self *IMAGE_RESOURCE_DIRECTORY_ENTRY) Size() int {
@@ -1223,6 +1901,19 @@ type IMAGE_SECTION_HEADER struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _Characteristics uint32
+    _Characteristics_cached bool
+
+    _PointerToRawData uint32
+    _PointerToRawData_cached bool
+
+    _SizeOfRawData uint32
+    _SizeOfRawData_cached bool
+
+    _VirtualAddress uint32
+    _VirtualAddress_cached bool
+
 }
 
 func (self *IMAGE_SECTION_HEADER) Size() int {
@@ -1230,7 +1921,13 @@ func (self *IMAGE_SECTION_HEADER) Size() int {
 }
 
 func (self *IMAGE_SECTION_HEADER) Characteristics() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_SECTION_HEADER_Characteristics + self.Offset)
+   if self._Characteristics_cached {
+      return self._Characteristics
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_SECTION_HEADER_Characteristics + self.Offset)
+   self._Characteristics = result
+   self._Characteristics_cached = true
+   return result
 }
 
 
@@ -1239,15 +1936,33 @@ func (self *IMAGE_SECTION_HEADER) Name() string {
 }
 
 func (self *IMAGE_SECTION_HEADER) PointerToRawData() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_SECTION_HEADER_PointerToRawData + self.Offset)
+   if self._PointerToRawData_cached {
+      return self._PointerToRawData
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_SECTION_HEADER_PointerToRawData + self.Offset)
+   self._PointerToRawData = result
+   self._PointerToRawData_cached = true
+   return result
 }
 
 func (self *IMAGE_SECTION_HEADER) SizeOfRawData() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_SECTION_HEADER_SizeOfRawData + self.Offset)
+   if self._SizeOfRawData_cached {
+      return self._SizeOfRawData
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_SECTION_HEADER_SizeOfRawData + self.Offset)
+   self._SizeOfRawData = result
+   self._SizeOfRawData_cached = true
+   return result
 }
 
 func (self *IMAGE_SECTION_HEADER) VirtualAddress() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_SECTION_HEADER_VirtualAddress + self.Offset)
+   if self._VirtualAddress_cached {
+      return self._VirtualAddress
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_SECTION_HEADER_VirtualAddress + self.Offset)
+   self._VirtualAddress = result
+   self._VirtualAddress_cached = true
+   return result
 }
 
 func (self *IMAGE_SECTION_HEADER) VirtualSize() uint32 {
@@ -1268,6 +1983,19 @@ type IMAGE_THUNK_DATA32 struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _AddressOfData uint32
+    _AddressOfData_cached bool
+
+    _ForwarderString uint32
+    _ForwarderString_cached bool
+
+    _Function uint32
+    _Function_cached bool
+
+    _Ordinal uint32
+    _Ordinal_cached bool
+
 }
 
 func (self *IMAGE_THUNK_DATA32) Size() int {
@@ -1275,19 +2003,43 @@ func (self *IMAGE_THUNK_DATA32) Size() int {
 }
 
 func (self *IMAGE_THUNK_DATA32) AddressOfData() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_THUNK_DATA32_AddressOfData + self.Offset)
+   if self._AddressOfData_cached {
+      return self._AddressOfData
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_THUNK_DATA32_AddressOfData + self.Offset)
+   self._AddressOfData = result
+   self._AddressOfData_cached = true
+   return result
 }
 
 func (self *IMAGE_THUNK_DATA32) ForwarderString() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_THUNK_DATA32_ForwarderString + self.Offset)
+   if self._ForwarderString_cached {
+      return self._ForwarderString
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_THUNK_DATA32_ForwarderString + self.Offset)
+   self._ForwarderString = result
+   self._ForwarderString_cached = true
+   return result
 }
 
 func (self *IMAGE_THUNK_DATA32) Function() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_THUNK_DATA32_Function + self.Offset)
+   if self._Function_cached {
+      return self._Function
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_THUNK_DATA32_Function + self.Offset)
+   self._Function = result
+   self._Function_cached = true
+   return result
 }
 
 func (self *IMAGE_THUNK_DATA32) Ordinal() uint32 {
-   return ParseUint32(self.Reader, self.Profile.Off_IMAGE_THUNK_DATA32_Ordinal + self.Offset)
+   if self._Ordinal_cached {
+      return self._Ordinal
+   }
+   result := ParseUint32(self.Reader, self.Profile.Off_IMAGE_THUNK_DATA32_Ordinal + self.Offset)
+   self._Ordinal = result
+   self._Ordinal_cached = true
+   return result
 }
 func (self *IMAGE_THUNK_DATA32) DebugString() string {
     result := fmt.Sprintf("struct IMAGE_THUNK_DATA32 @ %#x:\n", self.Offset)
@@ -1302,6 +2054,19 @@ type IMAGE_THUNK_DATA64 struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
+    _AddressOfData uint64
+    _AddressOfData_cached bool
+
+    _ForwarderString uint64
+    _ForwarderString_cached bool
+
+    _Function uint64
+    _Function_cached bool
+
+    _Ordinal uint64
+    _Ordinal_cached bool
+
 }
 
 func (self *IMAGE_THUNK_DATA64) Size() int {
@@ -1309,19 +2074,43 @@ func (self *IMAGE_THUNK_DATA64) Size() int {
 }
 
 func (self *IMAGE_THUNK_DATA64) AddressOfData() uint64 {
-    return ParseUint64(self.Reader, self.Profile.Off_IMAGE_THUNK_DATA64_AddressOfData + self.Offset)
+    if self._AddressOfData_cached {
+        return self._AddressOfData
+    }
+    result := ParseUint64(self.Reader, self.Profile.Off_IMAGE_THUNK_DATA64_AddressOfData + self.Offset)
+    self._AddressOfData = result
+    self._AddressOfData_cached = true
+    return result
 }
 
 func (self *IMAGE_THUNK_DATA64) ForwarderString() uint64 {
-    return ParseUint64(self.Reader, self.Profile.Off_IMAGE_THUNK_DATA64_ForwarderString + self.Offset)
+    if self._ForwarderString_cached {
+        return self._ForwarderString
+    }
+    result := ParseUint64(self.Reader, self.Profile.Off_IMAGE_THUNK_DATA64_ForwarderString + self.Offset)
+    self._ForwarderString = result
+    self._ForwarderString_cached = true
+    return result
 }
 
 func (self *IMAGE_THUNK_DATA64) Function() uint64 {
-    return ParseUint64(self.Reader, self.Profile.Off_IMAGE_THUNK_DATA64_Function + self.Offset)
+    if self._Function_cached {
+        return self._Function
+    }
+    result := ParseUint64(self.Reader, self.Profile.Off_IMAGE_THUNK_DATA64_Function + self.Offset)
+    self._Function = result
+    self._Function_cached = true
+    return result
 }
 
 func (self *IMAGE_THUNK_DATA64) Ordinal() uint64 {
-    return ParseUint64(self.Reader, self.Profile.Off_IMAGE_THUNK_DATA64_Ordinal + self.Offset)
+    if self._Ordinal_cached {
+        return self._Ordinal
+    }
+    result := ParseUint64(self.Reader, self.Profile.Off_IMAGE_THUNK_DATA64_Ordinal + self.Offset)
+    self._Ordinal = result
+    self._Ordinal_cached = true
+    return result
 }
 func (self *IMAGE_THUNK_DATA64) DebugString() string {
     result := fmt.Sprintf("struct IMAGE_THUNK_DATA64 @ %#x:\n", self.Offset)
@@ -1336,6 +2125,7 @@ type TagVS_FIXEDFILEINFO struct {
     Reader io.ReaderAt
     Offset int64
     Profile *PeProfile
+    
 }
 
 func (self *TagVS_FIXEDFILEINFO) Size() int {
