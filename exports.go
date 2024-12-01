@@ -1,5 +1,7 @@
 package pe
 
+import "strings"
+
 type IMAGE_EXPORT_DESCRIPTOR struct {
 	Ordinal   int
 	Name      string
@@ -54,11 +56,6 @@ func (self *IMAGE_NT_HEADERS) ExportTable(
 		return nil
 	}
 
-	dll_name := ""
-	if !IsInExportDir(dir, desc.Name()) {
-		dll_name = desc.DLLName(rva_resolver)
-	}
-
 	// Keep number_of_names reasonable
 	number_of_names := int(CapUint32(
 		desc.NumberOfNames(), MAX_IMPORT_TABLE_LENGTH))
@@ -98,31 +95,6 @@ func (self *IMAGE_NT_HEADERS) ExportTable(
 	// RVA, which is an actual address in code or data. Otherwise,
 	// the field is a forwarder RVA, which names a symbol in
 	// another DLL.
-	for i, func_addr := range func_table {
-		if IsInExportDir(dir, func_addr) {
-			if i >= len(ordinal_table) {
-				continue
-			}
-			var ordinal uint32
-			if i < len(ordinal_table) {
-				ordinal = uint32(ordinal_table[i])
-				seen[uint32(ordinal)] = true
-			}
-
-			file_address, err = rva_resolver.GetFileAddress(func_addr)
-			if err == nil {
-				name := ParseTerminatedString(self.Reader, int64(file_address))
-				result = append(result, &IMAGE_EXPORT_DESCRIPTOR{
-					Ordinal:   int(ordinal),
-					Name:      name,
-					Forwarder: name,
-					DLLName:   dll_name,
-				})
-			}
-
-		}
-	}
-
 	for i := 0; i < len(name_table); i++ {
 		file_address, err = rva_resolver.GetFileAddress(name_table[i])
 		if err != nil {
@@ -139,18 +111,33 @@ func (self *IMAGE_NT_HEADERS) ExportTable(
 			func_rva = func_table[ordinal]
 		}
 
-		_, pres := seen[ordinal]
-		if pres {
+		if _, pres := seen[ordinal]; pres {
 			continue
 		}
-		seen[ordinal] = true
 
-		result = append(result, &IMAGE_EXPORT_DESCRIPTOR{
-			Ordinal: int(ordinal),
-			Name:    name,
-			DLLName: dll_name,
-			RVA:     int64(func_rva),
-		})
+		if IsInExportDir(dir, func_rva) {
+			file_address, err = rva_resolver.GetFileAddress(func_rva)
+			if err == nil {
+				forwardStr := ParseTerminatedString(self.Reader, int64(file_address))
+				if idx := strings.IndexByte(forwardStr, '.'); idx != -1 {
+					seen[ordinal] = true
+					result = append(result, &IMAGE_EXPORT_DESCRIPTOR{
+						Ordinal:   int(ordinal),
+						Name:      name,
+						Forwarder: forwardStr[idx+1:],
+						DLLName:   forwardStr[:idx],
+					})
+				}
+			}
+		} else {
+			seen[ordinal] = true
+			result = append(result, &IMAGE_EXPORT_DESCRIPTOR{
+				Ordinal: int(ordinal),
+				Name:    name,
+				DLLName: "",
+				RVA:     int64(func_rva),
+			})
+		}
 	}
 
 	// Now list exported functions without a name (by ordinal)
@@ -164,7 +151,7 @@ func (self *IMAGE_NT_HEADERS) ExportTable(
 				if i < len(func_table) {
 					result = append(result, &IMAGE_EXPORT_DESCRIPTOR{
 						Ordinal: int(ordinal),
-						DLLName: dll_name,
+						DLLName: "",
 						RVA:     int64(func_table[i]),
 					})
 				}
